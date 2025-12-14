@@ -1,0 +1,428 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1272</width>
+    <height>640</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>TTTATool - Table Tennis Assessment Toolkit</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">/* --- App theme (sáng hơn, xanh nhạt) --- */
+QMainWindow { background: #f0f9ff; }
+QTabWidget::pane { border: 1px solid #bae6fd; border-radius: 10px; background: #e0f2fe; }
+QTabBar::tab { background: #93c5fd; color: #1e3a8a; padding: 8px 16px; margin: 4px; border-radius: 8px; }
+QTabBar::tab:selected { background: #3b82f6; color: white; }
+QPushButton { background: #3b82f6; color: white; border-radius: 10px; padding: 8px 18px; font-weight: 600; }
+QPushButton:hover { background: #2563eb; }
+QPushButton:disabled { background: #93c5fd; color: #475569; }
+QLabel#titleLabel { color: #1d4ed8; font: 600 18pt &quot;Segoe UI&quot;; }
+QLabel.videoBox { background: #f9fafb; color: #334155; border: 2px dashed #93c5fd; border-radius: 14px; }
+QTextEdit#outputConsole { background: #111827; color: #f1f5f9; font-family: Consolas, monospace; font-size: 10pt; border-radius: 8px; padding: 8px; }
+   </string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="mainLayout" stretch="0,1">
+    <property name="leftMargin">
+     <number>16</number>
+    </property>
+    <property name="topMargin">
+     <number>16</number>
+    </property>
+    <property name="rightMargin">
+     <number>16</number>
+    </property>
+    <property name="bottomMargin">
+     <number>16</number>
+    </property>
+    <item>
+     <widget class="QLabel" name="titleLabel">
+      <property name="text">
+       <string>Table Tennis Assessment Toolkit</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="tabTracking">
+       <attribute name="title">
+        <string>Tracking Ball</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="layoutTracking">
+        <property name="spacing">
+         <number>12</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="videoLabelTracking">
+          <property name="minimumSize">
+           <size>
+            <width>640</width>
+            <height>360</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">/* marker for style */</string>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::Shape::NoFrame</enum>
+          </property>
+          <property name="text">
+           <string>Video Preview (Tracking)</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="controlsTracking">
+          <item>
+           <widget class="QPushButton" name="btnOpenTracking">
+            <property name="text">
+             <string>Open Video</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnStartTracking">
+            <property name="text">
+             <string>Start</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnPauseTracking">
+            <property name="text">
+             <string>Pause</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="spacerTracking">
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tabPoseEst">
+       <attribute name="title">
+        <string>Pose Estimation</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="layoutPoseEst">
+        <property name="spacing">
+         <number>12</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="videoLabelPose">
+          <property name="minimumSize">
+           <size>
+            <width>640</width>
+            <height>360</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">/* marker for style */</string>
+          </property>
+          <property name="text">
+           <string>Video Preview (Pose)</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="controlsPose">
+          <item>
+           <widget class="QPushButton" name="btnOpenPose">
+            <property name="text">
+             <string>Open Video</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnStartPose">
+            <property name="text">
+             <string>Start</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnPausePose">
+            <property name="text">
+             <string>Pause</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="spacerPose">
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tabPoseCompare">
+       <attribute name="title">
+        <string>Pose Compare</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="layoutPoseCompare">
+        <item>
+         <layout class="QHBoxLayout" name="comparePoseRoot">
+          <item>
+           <layout class="QHBoxLayout" name="videosRow">
+            <item>
+             <widget class="QGroupBox" name="groupTeacher">
+              <property name="title">
+               <string>Reference (Teacher)</string>
+              </property>
+              <layout class="QVBoxLayout" name="groupTeacherCol">
+               <item>
+                <widget class="QLabel" name="videoTeacher">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="minimumSize">
+                  <size>
+                   <width>460</width>
+                   <height>260</height>
+                  </size>
+                 </property>
+                 <property name="frameShape">
+                  <enum>QFrame::Shape::StyledPanel</enum>
+                 </property>
+                 <property name="text">
+                  <string>Teacher Video</string>
+                 </property>
+                 <property name="alignment">
+                  <set>Qt::AlignmentFlag::AlignCenter</set>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="groupTeacherButtons">
+                 <item>
+                  <widget class="QPushButton" name="btnPickRef">
+                   <property name="text">
+                    <string>Select Reference Video…</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="lblRefPath">
+                   <property name="toolTip">
+                    <string>Selected reference video file</string>
+                   </property>
+                   <property name="text">
+                    <string>No file selected</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="groupStudent">
+              <property name="title">
+               <string>Target (Student)</string>
+              </property>
+              <layout class="QVBoxLayout" name="groupStudentCol">
+               <item>
+                <widget class="QLabel" name="videoStudent">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="minimumSize">
+                  <size>
+                   <width>460</width>
+                   <height>260</height>
+                  </size>
+                 </property>
+                 <property name="frameShape">
+                  <enum>QFrame::Shape::StyledPanel</enum>
+                 </property>
+                 <property name="text">
+                  <string>Student Video</string>
+                 </property>
+                 <property name="alignment">
+                  <set>Qt::AlignmentFlag::AlignCenter</set>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="groupStudentButtons">
+                 <item>
+                  <widget class="QPushButton" name="btnPickStu">
+                   <property name="text">
+                    <string>Select Target Video…</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="lblStuPath">
+                   <property name="toolTip">
+                    <string>Selected target video file</string>
+                   </property>
+                   <property name="text">
+                    <string>No file selected</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QFrame" name="panelRight">
+            <property name="minimumSize">
+             <size>
+              <width>240</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="frameShape">
+             <enum>QFrame::Shape::StyledPanel</enum>
+            </property>
+            <layout class="QVBoxLayout" name="rightCol">
+             <item>
+              <widget class="QGroupBox" name="groupScore">
+               <property name="title">
+                <string>Score</string>
+               </property>
+               <layout class="QVBoxLayout" name="scoreCol">
+                <item>
+                 <widget class="QLCDNumber" name="lcdScore">
+                  <property name="digitCount">
+                   <number>4</number>
+                  </property>
+                  <property name="segmentStyle">
+                   <enum>QLCDNumber::SegmentStyle::Flat</enum>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLabel" name="lblScoreHint">
+                  <property name="text">
+                   <string>Higher is better</string>
+                  </property>
+                  <property name="alignment">
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item>
+              <widget class="QGroupBox" name="groupErrors">
+               <property name="title">
+                <string>Error List</string>
+               </property>
+               <layout class="QVBoxLayout" name="errorsCol">
+                <item>
+                 <widget class="QListWidget" name="listErrors"/>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item>
+              <widget class="QGroupBox" name="groupAction">
+               <property name="title">
+                <string>Action Type</string>
+               </property>
+               <layout class="QVBoxLayout" name="actionCol">
+                <item>
+                 <widget class="QComboBox" name="comboAction">
+                  <property name="toolTip">
+                   <string>Select the type of action to analyze</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="actionsRow">
+               <item>
+                <widget class="QPushButton" name="btnRunCompare">
+                 <property name="text">
+                  <string>Start Analysis</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1272</width>
+     <height>33</height>
+    </rect>
+   </property>
+   <addaction name="menuFile"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="menuFile">
+   <property name="text">
+    <string>&amp;File</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
