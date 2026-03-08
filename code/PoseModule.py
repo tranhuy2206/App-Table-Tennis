@@ -1,6 +1,5 @@
 import cv2
 import mediapipe as mp
-import time
 import math
 
 
@@ -29,19 +28,38 @@ class poseDetector:
         imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         self.results = self.pose.process(imgRGB)
         if self.results.pose_landmarks and draw:
+            connection_style = self.mpDraw.DrawingSpec(color=(0, 255, 0), thickness=5, circle_radius=2)
+            node_style = self.mpDraw.DrawingSpec(color=(0, 0, 255), thickness=3, circle_radius=4)
             self.mpDraw.draw_landmarks(img, self.results.pose_landmarks,
-                                       self.mpPose.POSE_CONNECTIONS)
+                                       self.mpPose.POSE_CONNECTIONS,
+                                       landmark_drawing_spec=node_style,
+                                       connection_drawing_spec=connection_style)
         return img
 
-    def findPosition(self, img, draw=True):
+    def findPosition(self, img, draw=True, use_3d=False):
         self.lmList = []
         if self.results.pose_landmarks:
-            for id, lm in enumerate(self.results.pose_landmarks.landmark):
-                h, w, c = img.shape
-                cx, cy = int(lm.x * w), int(lm.y * h)
-                self.lmList.append([id, cx, cy])
-                if draw:
-                    cv2.circle(img, (cx, cy), 5, (255, 0, 0), cv2.FILLED)
+            h, w, c = img.shape
+            
+            if use_3d and self.results.pose_world_landmarks:
+                # Sử dụng pose_world_landmarks cho tọa độ 3D chính xác (metric coordinates)
+                # pose_world_landmarks trả về tọa độ trong world space (meters)
+                world_landmarks = self.results.pose_world_landmarks.landmark
+                for id, (lm, wlm) in enumerate(zip(self.results.pose_landmarks.landmark, world_landmarks)):
+                    # Lấy x, y từ pose_landmarks (để vẽ trên image)
+                    cx, cy = int(lm.x * w), int(lm.y * h)
+                    # Lấy x, y, z từ pose_world_landmarks (metric coordinates, chính xác hơn)
+                    wx, wy, wz = float(wlm.x), float(wlm.y), float(wlm.z)
+                    self.lmList.append([id, cx, cy, wx, wy, wz])
+                    if draw:
+                        cv2.circle(img, (cx, cy), 5, (255, 0, 0), cv2.FILLED)
+            else:
+                # Mode 2D: chỉ dùng pose_landmarks
+                for id, lm in enumerate(self.results.pose_landmarks.landmark):
+                    cx, cy = int(lm.x * w), int(lm.y * h)
+                    self.lmList.append([id, cx, cy])
+                    if draw:
+                        cv2.circle(img, (cx, cy), 5, (255, 0, 0), cv2.FILLED)
         return self.lmList
 
     def findAngle(self, img, p1, p2, p3, draw=True):

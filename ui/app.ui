@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>TTTATool - Table Tennis Assessment Toolkit</string>
+   <string>TTATool - Table Tennis Assessment Toolkit</string>
   </property>
   <property name="styleSheet">
    <string notr="true">/* --- App theme (sáng hơn, xanh nhạt) --- */
@@ -395,6 +395,53 @@ QTextEdit#outputConsole { background: #111827; color: #f1f5f9; font-family: Cons
               </layout>
              </item>
             </layout>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tabChatbot">
+       <attribute name="title">
+        <string>Chatbot Tư Vấn</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="layoutChatbot">
+        <property name="spacing">
+         <number>12</number>
+        </property>
+        <item>
+         <widget class="QTextEdit" name="chatDisplay">
+          <property name="readOnly">
+           <bool>true</bool>
+          </property>
+          <property name="placeholderText">
+           <string>Chào mừng bạn đến với chatbot tư vấn về nội dung và giáo trình môn bóng bàn. Hãy đặt câu hỏi của bạn ở bên dưới.</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="chatInputLayout">
+          <item>
+           <widget class="QTextEdit" name="chatInput">
+            <property name="maximumHeight">
+             <number>80</number>
+            </property>
+            <property name="placeholderText">
+             <string>Nhập câu hỏi của bạn về nội dung hoặc giáo trình môn bóng bàn...</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnSendChat">
+            <property name="text">
+             <string>Gửi</string>
+            </property>
+            <property name="minimumSize">
+             <size>
+              <width>80</width>
+              <height>0</height>
+             </size>
+            </property>
            </widget>
           </item>
          </layout>

@@ -1,5 +1,8 @@
 from PySide6.QtCore import QObject, QThread, Signal
 import Compare_Pose as CP
+import cv2 as cv
+import PoseModule as pm
+import numpy as np
 
 # Worker chạy trong thread nền
 class CompareWorker(QObject):
@@ -7,19 +10,40 @@ class CompareWorker(QObject):
     finished = Signal(dict)         
     failed   = Signal(str)
 
-    def __init__(self, ref_path, stu_path, n_points=100, weights=None, action_name=None):
+    def __init__(self, ref_path, stu_path, n_points=100, weights=None, action_name=None, use_3d=False):
         super().__init__()
         self.ref_path = ref_path
         self.stu_path = stu_path
         self.n_points = n_points
         self.weights = weights
         self.action_name = action_name
+        self.use_3d = use_3d
 
     def run(self):
         try:
-            featsA = CP.extract_features(self.ref_path, draw=False)
+            # Nếu dùng 3D, cần tính reference shoulder direction từ video reference trước
+            ref_shoulder_dir = None
+            if self.use_3d:
+                # Trích xuất một frame đầu tiên từ reference video để tính shoulder direction
+                cap = cv.VideoCapture(self.ref_path)
+                detector = pm.poseDetector()
+                for _ in range(10):  # Thử 10 frame đầu
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                    detector.findPose(frame, draw=False)
+                    lmList = detector.findPosition(frame, draw=False, use_3d=True)
+                    if lmList and len(lmList) >= 29:
+                        pts = CP._extract_xyz_from_lmList(lmList)
+                        if 11 in pts and 12 in pts:
+                            shoulder_vec = np.array(pts[12]) - np.array(pts[11])
+                            ref_shoulder_dir = shoulder_vec / (np.linalg.norm(shoulder_vec) + 1e-6)
+                            break
+                cap.release()
+            
+            featsA = CP.extract_features(self.ref_path, draw=False, use_3d=self.use_3d, reference_shoulder_dir=ref_shoulder_dir)
 
-            featsB = CP.extract_features(self.stu_path, draw=False)
+            featsB = CP.extract_features(self.stu_path, draw=False, use_3d=self.use_3d, reference_shoulder_dir=ref_shoulder_dir)
 
             A_rs = CP.resample_features(featsA, n=self.n_points)
             B_rs = CP.resample_features(featsB, n=self.n_points)

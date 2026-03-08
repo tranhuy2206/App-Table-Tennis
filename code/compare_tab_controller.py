@@ -36,6 +36,7 @@ class CompareTabController:
         self._worker = None
         self.cap_teacher = None 
         self.cap_student = None
+        self.use_3d = True  # Mặc định bật 3D để xử lý tốt hơn khi góc quay khác nhau
 
         self.teacher_preview = AutoplayPreview(
             mw, self.videoTeacher, processor=PoseProcessor(), interval_ms=33, loop=True
@@ -93,7 +94,7 @@ class CompareTabController:
         
         # Start worker thread
         self._thread = QThread(self.mw)
-        self._worker = CompareWorker(self.ref_path, self.stu_path, n_points=80, weights=None, action_name=action_name)
+        self._worker = CompareWorker(self.ref_path, self.stu_path, n_points=80, weights=None, action_name=action_name, use_3d=self.use_3d)
         self._worker.moveToThread(self._thread)
 
         self._thread.started.connect(self._worker.run)

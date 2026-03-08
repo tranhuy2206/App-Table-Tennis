@@ -1,12 +1,12 @@
 import sys, os, warnings   
 from PySide6 import QtUiTools
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QTabWidget
+from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QTabWidget, QTextEdit
 from video_tabs_controller import VideoTabController
 from processor_ball import BallProcessor
 from processor_pose import PoseProcessor
 from compare_tab_controller import CompareTabController
-
+from chatbot_controller import ChatbotController
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
@@ -37,6 +37,15 @@ if __name__ == "__main__":
     # ---------- TAB: Pose Compare ----------
     cmp_ctrl = CompareTabController(mw)
 
+    # ---------- TAB: Chatbot ----------
+    chat_ctrl = ChatbotController(
+        mw,
+        chat_display = mw.findChild(QTextEdit, "chatDisplay"),
+        chat_input = mw.findChild(QTextEdit, "chatInput"),
+        btn_send = mw.findChild(QPushButton, "btnSendChat"),
+        data_dir = "data/"
+    )
+
     # Dừng controller không hoạt động khi đổi tab (tránh chiếm camera)
     tabw = mw.findChild(QTabWidget, "tabWidget")
     if tabw:
@@ -46,6 +55,10 @@ if __name__ == "__main__":
             elif idx == 1:      
                 ctrl_ball.stop()
             elif idx == 2:
+                cmp_ctrl.stop_previews()
+            elif idx == 3:  # Tab Chatbot
+                ctrl_ball.stop()
+                ctrl_pose.stop()
                 cmp_ctrl.stop_previews()
         tabw.currentChanged.connect(on_tab_changed)
 
