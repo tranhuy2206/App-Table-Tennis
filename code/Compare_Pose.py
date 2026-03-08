@@ -116,6 +116,13 @@ PRESET_WEIGHTS = {
 def _dist(p, q):
     return math.hypot(p[0] - q[0], p[1] - q[1])
 
+def _dist_3d(p, q):
+    """Tính khoảng cách 3D giữa 2 điểm"""
+    dx = p[0] - q[0]
+    dy = p[1] - q[1]
+    dz = p[2] - q[2]
+    return math.sqrt(dx*dx + dy*dy + dz*dz)
+
 def _angle_of_vector_deg(v):
     return math.degrees(math.atan2(v[1], v[0]))
 
@@ -129,6 +136,23 @@ def _joint_angle_deg(a, b, c):
         ang = 360 - ang
     return ang
 
+def _joint_angle_3d_deg(a, b, c):
+    """Tính góc 3D giữa 3 điểm (góc tại điểm b)"""
+    v1 = np.array([a[0] - b[0], a[1] - b[1], a[2] - b[2]])
+    v2 = np.array([c[0] - b[0], c[1] - b[1], c[2] - b[2]])
+    
+    # Tính góc bằng dot product
+    dot = np.dot(v1, v2)
+    norm1 = np.linalg.norm(v1)
+    norm2 = np.linalg.norm(v2)
+    
+    if norm1 < 1e-6 or norm2 < 1e-6:
+        return 0.0
+    
+    cos_angle = np.clip(dot / (norm1 * norm2), -1.0, 1.0)
+    angle_rad = math.acos(cos_angle)
+    return math.degrees(angle_rad)
+
 def _wrap_angle_diff_deg(a, b):
     d = (a - b + 180) % 360 - 180
     return abs(d)
@@ -139,6 +163,37 @@ def _extract_xy_from_lmList(lmList):
         if len(item) >= 3:
             idx, x, y = int(item[0]), float(item[1]), float(item[2])
             pts[idx] = (x, y)
+    return pts
+
+def _extract_xyz_from_lmList(lmList):
+    """
+    Trích xuất tọa độ 3D từ lmList.
+    
+    Format mới từ pose_world_landmarks: [id, cx, cy, wx, wy, wz]
+    - cx, cy: tọa độ pixel trên image (để vẽ)
+    - wx, wy, wz: tọa độ 3D trong world space (metric, meters)
+    
+    Returns:
+        Dictionary với key là landmark index, value là tuple (wx, wy, wz) - world coordinates
+    """
+    pts = {}
+    for item in lmList:
+        if len(item) >= 6:
+            # Format mới: [id, cx, cy, wx, wy, wz]
+            idx = int(item[0])
+            wx, wy, wz = float(item[3]), float(item[4]), float(item[5])
+            pts[idx] = (wx, wy, wz)
+        elif len(item) >= 4:
+            # Format cũ (fallback): [id, cx, cy, cz] - dùng z từ pose_landmarks
+            idx = int(item[0])
+            # Nếu là format cũ, dùng z đã scale
+            x, y, z = float(item[1]), float(item[2]), float(item[3])
+            # Giả sử đây là world coordinates đã scale
+            pts[idx] = (x, y, z)
+        elif len(item) >= 3:
+            # Fallback: nếu không có z, dùng z=0
+            idx, x, y = int(item[0]), float(item[1]), float(item[2])
+            pts[idx] = (x, y, 0.0)
     return pts
 
 def _normalize_landmarks(pts):
@@ -161,6 +216,82 @@ def _normalize_landmarks(pts):
         y = trans[k][1] / shoulder_w
         scaled[k] = (x,y)
     return scaled
+
+def _normalize_landmarks_3d(pts, reference_shoulder_dir=None):
+    """
+    Normalize và align pose 3D về cùng hệ tọa độ.
+    
+    Args:
+        pts: Dictionary với key là landmark index, value là tuple (x, y, z)
+        reference_shoulder_dir: Vector hướng vai của reference pose (để align)
+                              Nếu None, chỉ normalize không align
+    
+    Returns:
+        Dictionary các điểm đã normalize và align
+    """
+    must_have = [11, 12, 23, 24]
+    if not all(k in pts for k in must_have):
+        return None
+    
+    # 1. Translate về mid_hip
+    mid_hip = (
+        (pts[23][0] + pts[24][0]) / 2.0,
+        (pts[23][1] + pts[24][1]) / 2.0,
+        (pts[23][2] + pts[24][2]) / 2.0
+    )
+    trans = {}
+    for k in pts:
+        x = pts[k][0] - mid_hip[0]
+        y = pts[k][1] - mid_hip[1]
+        z = pts[k][2] - mid_hip[2]
+        trans[k] = np.array([x, y, z])
+    
+    # 2. Scale theo shoulder width
+    shoulder_vec = trans[12] - trans[11]
+    shoulder_w = np.linalg.norm(shoulder_vec)
+    if shoulder_w < 1e-6:
+        return None
+    
+    scaled = {}
+    for k in trans:
+        scaled[k] = trans[k] / shoulder_w
+    
+    # 3. Align shoulder line về cùng hướng (nếu có reference)
+    if reference_shoulder_dir is not None:
+        current_shoulder_dir = scaled[12] - scaled[11]
+        current_shoulder_dir = current_shoulder_dir / (np.linalg.norm(current_shoulder_dir) + 1e-6)
+        ref_dir_norm = reference_shoulder_dir / (np.linalg.norm(reference_shoulder_dir) + 1e-6)
+        
+        # Tính góc xoay cần thiết
+        cross = np.cross(current_shoulder_dir, ref_dir_norm)
+        dot = np.clip(np.dot(current_shoulder_dir, ref_dir_norm), -1.0, 1.0)
+        angle = math.acos(dot)
+        
+        # Nếu góc quay đáng kể (> 1 độ), thực hiện xoay
+        if abs(angle) > math.radians(1.0):
+            # Trục xoay là cross product (vuông góc với cả 2 vector)
+            if np.linalg.norm(cross) > 1e-6:
+                axis = cross / np.linalg.norm(cross)
+                # Rotation matrix (Rodrigues' formula)
+                K = np.array([
+                    [0, -axis[2], axis[1]],
+                    [axis[2], 0, -axis[0]],
+                    [-axis[1], axis[0], 0]
+                ])
+                R = np.eye(3) + math.sin(angle) * K + (1 - math.cos(angle)) * np.dot(K, K)
+                
+                # Áp dụng rotation cho tất cả các điểm
+                aligned = {}
+                for k in scaled:
+                    aligned[k] = np.dot(R, scaled[k])
+                scaled = aligned
+    
+    # Chuyển về tuple để tương thích với code cũ
+    result = {}
+    for k in scaled:
+        result[k] = tuple(scaled[k])
+    
+    return result
 
 def _compute_frame_features(pts_norm):
     idx_map = {
@@ -205,7 +336,96 @@ def _compute_frame_features(pts_norm):
         "stance_width_norm": stance_width_norm,
     }
 
-def extract_features(video_path, draw=False, smooth=False):
+def _angle_of_vector_3d_deg(v):
+    """Tính góc của vector 3D trong mặt phẳng XY (projection)"""
+    return math.degrees(math.atan2(v[1], v[0]))
+
+def _compute_frame_features_3d(pts_norm):
+    """
+    Tính features từ pose 3D đã normalize.
+    Sử dụng góc 3D thực tế thay vì góc 2D để chính xác hơn.
+    """
+    idx_map = {
+        "L_SH": 11, "R_SH": 12,
+        "L_EL": 13, "R_EL": 14,
+        "L_WR": 15, "R_WR": 16,
+        "L_HP": 23, "R_HP": 24,
+        "L_KN": 25, "R_KN": 26,
+        "L_AN": 27, "R_AN": 28,
+    }
+    need = set(idx_map.values())
+    if not all(i in pts_norm for i in need):
+        return None
+    
+    SH_L, SH_R = pts_norm[idx_map["L_SH"]], pts_norm[idx_map["R_SH"]]
+    EL_R, WR_R = pts_norm[idx_map["R_EL"]], pts_norm[idx_map["R_WR"]]
+    HP_L, HP_R = pts_norm[idx_map["L_HP"]], pts_norm[idx_map["R_HP"]]
+    KN_L, KN_R = pts_norm[idx_map["L_KN"]], pts_norm[idx_map["R_KN"]]
+    AN_L, AN_R = pts_norm[idx_map["L_AN"]], pts_norm[idx_map["R_AN"]]
+    
+    # Tính góc 3D thực tế (chính xác hơn 2D)
+    right_elbow_angle = _joint_angle_3d_deg(SH_R, EL_R, WR_R)
+    
+    # Forearm direction: projection lên mặt phẳng XY
+    forearm_vec = (WR_R[0] - EL_R[0], WR_R[1] - EL_R[1], WR_R[2] - EL_R[2])
+    forearm_dir = _angle_of_vector_3d_deg(forearm_vec)
+    if forearm_dir < 0:
+        forearm_dir += 360
+    
+    # Shoulder line direction: projection lên mặt phẳng XY
+    shoulder_vec = (SH_R[0] - SH_L[0], SH_R[1] - SH_L[1], SH_R[2] - SH_L[2])
+    shoulder_dir = _angle_of_vector_3d_deg(shoulder_vec)
+    if shoulder_dir < 0:
+        shoulder_dir += 360
+    
+    # Hip line direction: projection lên mặt phẳng XY
+    hip_vec = (HP_R[0] - HP_L[0], HP_R[1] - HP_L[1], HP_R[2] - HP_L[2])
+    hip_dir = _angle_of_vector_3d_deg(hip_vec)
+    if hip_dir < 0:
+        hip_dir += 360
+    
+    # Torso twist: góc giữa 2 vector trong không gian 3D
+    shoulder_vec_norm = np.array(shoulder_vec) / (np.linalg.norm(shoulder_vec) + 1e-6)
+    hip_vec_norm = np.array(hip_vec) / (np.linalg.norm(hip_vec) + 1e-6)
+    dot = np.clip(np.dot(shoulder_vec_norm, hip_vec_norm), -1.0, 1.0)
+    torso_twist_3d = math.degrees(math.acos(abs(dot)))
+    # Cũng tính torso_twist theo cách cũ (2D projection) để tương thích
+    torso_twist = abs(_wrap_angle_diff_deg(shoulder_dir, hip_dir))
+    
+    # Góc gối 3D
+    right_knee_angle = _joint_angle_3d_deg(HP_R, KN_R, AN_R)
+    left_knee_angle = _joint_angle_3d_deg(HP_L, KN_L, AN_L)
+    
+    # Stance width: khoảng cách 3D
+    stance_width_norm = _dist_3d(AN_L, AN_R)
+    
+    return {
+        "right_elbow_angle": right_elbow_angle,
+        "forearm_direction": forearm_dir,
+        "shoulder_line_angle": shoulder_dir,
+        "hip_line_angle": hip_dir,
+        "torso_twist_abs": torso_twist,  # Giữ 2D để tương thích
+        "torso_twist_3d": torso_twist_3d,  # Thêm 3D version
+        "right_knee_angle": right_knee_angle,
+        "left_knee_angle": left_knee_angle,
+        "stance_width_norm": stance_width_norm,
+    }
+
+def extract_features(video_path, draw=False, smooth=False, use_3d=False, reference_shoulder_dir=None):
+    """
+    Trích xuất features từ video.
+    
+    Args:
+        video_path: Đường dẫn video
+        draw: Có vẽ skeleton không
+        smooth: Có làm mượt không (chưa implement)
+        use_3d: Sử dụng tọa độ 3D từ MediaPipe (tốt hơn khi góc quay khác nhau)
+        reference_shoulder_dir: Vector hướng vai của reference pose (để align khi use_3d=True)
+                               Nếu None, sẽ tự động tính từ frame đầu tiên
+    
+    Returns:
+        Dictionary chứa features
+    """
     cap = cv.VideoCapture(video_path)
     detector = pm.poseDetector()
     feats = {
@@ -218,30 +438,53 @@ def extract_features(video_path, draw=False, smooth=False):
         "left_knee_angle": [],
         "stance_width_norm": [],
     }
+    if use_3d:
+        feats["torso_twist_3d"] = []
+    
     total_frames = 0
     valid_frames = 0
+    ref_shoulder_dir = reference_shoulder_dir
+    
     while True:
         ret, frame = cap.read()
         if not ret:
             break
         total_frames += 1
         frame_proc = detector.findPose(frame, draw=draw)
-        lmList = detector.findPosition(frame_proc, draw=False)
+        lmList = detector.findPosition(frame_proc, draw=False, use_3d=use_3d)
         if not lmList or len(lmList) < 29:
             continue
-        pts = _extract_xy_from_lmList(lmList)
-        pts_norm = _normalize_landmarks(pts)
-        if pts_norm is None:
-            continue
-        f = _compute_frame_features(pts_norm)
+        
+        if use_3d:
+            pts = _extract_xyz_from_lmList(lmList)
+            # Tính reference shoulder direction từ frame đầu tiên nếu chưa có
+            if ref_shoulder_dir is None and 11 in pts and 12 in pts:
+                shoulder_vec = np.array(pts[12]) - np.array(pts[11])
+                ref_shoulder_dir = shoulder_vec / (np.linalg.norm(shoulder_vec) + 1e-6)
+            
+            pts_norm = _normalize_landmarks_3d(pts, ref_shoulder_dir)
+            if pts_norm is None:
+                continue
+            f = _compute_frame_features_3d(pts_norm)
+        else:
+            pts = _extract_xy_from_lmList(lmList)
+            pts_norm = _normalize_landmarks(pts)
+            if pts_norm is None:
+                continue
+            f = _compute_frame_features(pts_norm)
+        
         if f is None:
             continue
+        
         for k in feats.keys():
-            feats[k].append(float(f[k]))
+            if k in f:
+                feats[k].append(float(f[k]))
         valid_frames += 1
+    
     cap.release()
     feats["valid_frames"] = valid_frames
     feats["total_frames"] = total_frames
+    feats["use_3d"] = use_3d  # Đánh dấu để biết features này dùng 3D
     return feats
 
     
