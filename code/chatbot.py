@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import json
 import hashlib
@@ -10,9 +11,13 @@ from langchain_chroma import Chroma
 from langchain.agents import create_agent
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import HumanMessage
-from langchain_core.tools import create_retriever_tool
+from langchain_core.tools import create_retriever_tool, tool
 from langgraph.checkpoint.memory import MemorySaver
 import shutil
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 # 1. Cấu hình API Key 
 load_dotenv()
@@ -62,10 +67,12 @@ def build_chatbot(data_dir):
     all_documents = []
     
     # Quét toàn bộ thư mục data
-    persist_dir = "./chroma_db_official"
-    db_hash_file = "./chroma_db_official/.pdf_hash"
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    persist_dir = os.path.join(project_root, "chroma_db_official")
+    db_hash_file = os.path.join(persist_dir, ".pdf_hash")
     
     print(f" Đang quét thư mục {data_dir}... ")
+    print(f"  - ChromaDB persist dir: {persist_dir}")
     
     # Kiểm tra xem có file PDF mới không
     rebuild_needed = _should_rebuild_db(data_dir, persist_dir, db_hash_file)
@@ -139,26 +146,91 @@ def build_chatbot(data_dir):
     os.makedirs(persist_dir, exist_ok=True)
     _save_pdf_hash(db_hash_file, data_dir)
 
-    # Khởi tạo mô hình Gemini
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.1)
-
-    # Tạo chuỗi truy vấn 
+    # Tool tra cứu giáo trình
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3}) # Lấy 3 đoạn liên quan nhất
-    tool = create_retriever_tool(
+    pdf_tool = create_retriever_tool(
     retriever,
     "tra_cuu_giao_trinh_bong_ban",
     "Sử dụng công cụ này để tra cứu toàn bộ thông tin trong Đề cương và Giáo trình, "
     "bao gồm: lịch trình chi tiết từng tuần, thang điểm, điều kiện thi, và kỹ thuật bóng bàn."
 )
-    
-    tools = [tool]
+
+    # Tool tìm kiếm video hướng dẫn
+    @tool
+    def tim_video_huong_dan(query: str, technique: str = None, difficulty: str = None) -> str:
+        """
+        Tìm kiếm video hướng dẫn động tác bóng bàn.
+
+        Args:
+            query: Từ khóa tìm kiếm (ví dụ: "forehand", "backhand", "serve")
+            technique: Động tác cụ thể (tùy chọn)
+            difficulty: Độ khó (beginner/intermediate/advanced, tùy chọn)
+
+        Returns:
+            Thông tin video dưới dạng text + metadata để Android app parse
+        """
+        try:
+            # Import video service
+            import sys
+            backend_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            if backend_root not in sys.path:
+                sys.path.insert(0, backend_root)
+            from backend.services.video_service import get_video_service
+
+            video_service = get_video_service()
+            videos = video_service.search_videos(
+                query=query,
+                technique=technique,
+                difficulty=difficulty,
+                limit=3
+            )
+
+            if not videos:
+                return f"Không tìm thấy video hướng dẫn cho '{query}'. Vui lòng thử từ khóa khác hoặc liên hệ giáo viên để thêm video."
+
+            # Tạo response text cho người dùng
+            result = f"Tìm thấy {len(videos)} video hướng dẫn phù hợp:\n\n"
+            for i, video in enumerate(videos, 1):
+                result += f"{i}. **{video.title}**\n"
+                result += f"   - Động tác: {video.technique}\n"
+                result += f"   - Độ khó: {video.difficulty}\n"
+                result += f"   - Mô tả: {video.description}\n"
+                result += f"   - Tags: {', '.join(video.tags)}\n"
+
+                # Kiểm tra file video tồn tại - sử dụng đường dẫn tuyệt đối
+                file_path = video.file_path
+                if not os.path.isabs(file_path):
+                    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+                    file_path = os.path.join(project_root, file_path)
+                
+                if os.path.exists(file_path):
+                    result += f"   ✅ Video sẵn sàng để xem\n\n"
+                else:
+                    result += f"   ⚠️  File video không tìm thấy\n\n"
+
+                # Luôn thêm metadata VIDEO_ID cho Android app parse (bất kể file có tồn tại hay không)
+                result += f"[VIDEO_ID:{video.id}]\n"
+
+            return result
+
+        except Exception as e:
+            return f"Lỗi khi tìm kiếm video: {str(e)}"
+
+    tools = [pdf_tool, tim_video_huong_dan]
 
     prompt = (
     "Bạn là trợ lý học tập môn Bóng bàn tại UET. "
     "MỌI câu hỏi của sinh viên về lịch học, nội dung tuần, thang điểm và kỹ thuật "
     "BẮT BUỘC phải được tra cứu từ công cụ 'tra_cuu_giao_trinh_bong_ban' trước khi trả lời. "
-    "Trong đề cương học phần có bảng lịch trình chi tiết theo từng buổi/tuần, hãy tìm kỹ trong đó."
+    "Trong đề cương học phần có bảng lịch trình chi tiết theo từng buổi/tuần, hãy tìm kỹ trong đó.\n\n"
+    "Khi học sinh hỏi về cách thực hiện động tác hoặc muốn xem video hướng dẫn, "
+    "hãy sử dụng công cụ 'tim_video_huong_dan' để tìm và giới thiệu video phù hợp. "
+    "Luôn kiểm tra và thông báo nếu video có sẵn để xem.\n\n"
+    "QUAN TRỌNG: Khi tool 'tim_video_huong_dan' trả về kết quả, "
+    "hãy GIỮ NGUYÊN toàn bộ output từ tool, đặc biệt là phần [VIDEO_ID:...] ở cuối. "
+    "Đây là metadata quan trọng để Android app có thể tìm kiếm và stream video."
 )
+    llm = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash", temperature=0.2)
     agent = create_agent(llm, tools=tools, system_prompt=prompt, checkpointer=MemorySaver())
 
     return agent
