@@ -2,16 +2,7 @@ FROM python:3.10
 
 WORKDIR /app
 
-# Install system dependencies (python:3.10 full image đã có hầu hết, chỉ cần bổ sung)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Upgrade pip
+# Upgrade pip first (no system dependencies needed - opencv wheels include binaries)
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
 # Copy và install requirements
