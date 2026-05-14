@@ -1,0 +1,66 @@
+{
+  "videos": [
+    {
+      "id": "forehand_basic",
+      "title": "Forehand Drive Cơ Bản",
+      "description": "Hướng dẫn thực hiện cú đánh forehand drive cơ bản trong bóng bàn",
+      "technique": "forehand",
+      "difficulty": "beginner",
+      "duration": null,
+      "file_path": "video/forehand_basic.mp4",
+      "tags": [
+        "forehand",
+        "drive",
+        "basic",
+        "cơ bản"
+      ],
+      "created_at": "2026-05-11 19:50:30.838938"
+    },
+    {
+      "id": "backhand_push",
+      "title": "Backhand Push",
+      "description": "Hướng dẫn cú đẩy bóng bằng tay trái",
+      "technique": "backhand",
+      "difficulty": "beginner",
+      "duration": null,
+      "file_path": "video/backhand_push.mp4",
+      "tags": [
+        "backhand",
+        "push",
+        "đẩy bóng"
+      ],
+      "created_at": "2026-05-11 19:50:30.842969"
+    },
+    {
+      "id": "defend_basic",
+      "title": "Defend Basic",
+      "description": "Hướng dẫn thực hiện cú đánh defend cơ bản trong bóng bàn",
+      "technique": "defend",
+      "difficulty": "beginner",
+      "duration": null,
+      "file_path": "video/defend_basic.mp4",
+      "tags": [
+        "defend",
+        "basic",
+        "cơ bản"
+      ],
+      "created_at": "2026-05-14 21:50:55.713587"
+    },
+    {
+      "id": "smash_basic",
+      "title": "Smash Basic",
+      "description": "Hướng dẫn cú đánh smash cơ bản trong bóng bàn",
+      "technique": "smash",
+      "difficulty": "beginner",
+      "duration": null,
+      "file_path": "video/smash_basic.mp4",
+      "tags": [
+        "smash",
+        "basic",
+        "cơ bản"
+      ],
+      "created_at": "2026-05-14 21:51:21.168774"
+    }
+  ],
+  "last_updated": "2026-05-14T21:51:21.168774"
+}

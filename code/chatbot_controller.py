@@ -1,8 +1,51 @@
 import threading
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, QThread
 from PySide6.QtWidgets import QTextEdit, QPushButton
 from langchain_core.messages import HumanMessage
 from chatbot import build_chatbot
+
+class ChatbotWorker(QThread):
+    """Worker thread cho việc khởi tạo chatbot"""
+    finished = Signal(object)  # agent object
+    error = Signal(str)
+
+    def __init__(self, data_dir):
+        super().__init__()
+        self.data_dir = data_dir
+
+    def run(self):
+        try:
+            agent = build_chatbot(self.data_dir)
+            self.finished.emit(agent)
+        except Exception as e:
+            self.error.emit(str(e))
+
+class MessageWorker(QThread):
+    """Worker thread cho việc xử lý tin nhắn"""
+    finished = Signal(str)  # response text
+    error = Signal(str)
+
+    def __init__(self, agent, message, config):
+        super().__init__()
+        self.agent = agent
+        self.message = message
+        self.config = config
+
+    def run(self):
+        try:
+            response = self.agent.invoke(
+                {"messages": [HumanMessage(content=self.message)]},
+                config=self.config
+            )
+            final_msg = response['messages'][-1]
+
+            if isinstance(final_msg.content, list):
+                clean_text = "".join([item['text'] for item in final_msg.content if 'text' in item])
+                self.finished.emit(clean_text)
+            else:
+                self.finished.emit(str(final_msg.content))
+        except Exception as e:
+            self.error.emit(str(e))
 
 class ChatbotController(QObject):
     """Controller quản lý chatbot UI"""
@@ -14,29 +57,27 @@ class ChatbotController(QObject):
         self.chat_input = chat_input
         self.btn_send = btn_send
         self.data_dir = data_dir
-        
+
         # Khởi tạo chatbot
         self.agent = None
         self.config = {"configurable": {"thread_id": "session_1"}}
-        
-        # Setup worker thread
-        self.thread = None
-        self.worker = None
+
+        # Setup worker threads
+        self.init_worker = None
+        self.message_worker = None
         self.is_processing = False
         self.is_ready = False
-        
+
         # Connect button
         if self.btn_send:
             self.btn_send.clicked.connect(self._on_send_click)
-        
+
         # Cho phép Ctrl+Enter để gửi
         if self.chat_input:
             self.chat_input.keyPressEvent = self._chat_input_key_press
-        
+
         # Khởi tạo chat display
         if self.chat_display:
-            # build the welcome message explicitly to avoid Python's implicit
-            # literal concatenation being multiplied by the divider string.
             welcome = (
                 "Xin chào! Tôi là chatbot tư vấn về giáo trình bóng bàn.\n"
                 "Hãy đặt câu hỏi về nội dung, lịch học, kỹ thuật, hoặc bất kỳ thông tin nào từ giáo trình.\n"
@@ -44,34 +85,41 @@ class ChatbotController(QObject):
             divider = "─" * 60 + "\n"
             welcome += divider + "⏳ Đang khởi tạo chatbot...\n"
             self.chat_display.setText(welcome)
-        
+
         # Disable input khi chưa sẵn sàng
         if self.chat_input:
             self.chat_input.setEnabled(False)
         if self.btn_send:
             self.btn_send.setEnabled(False)
-        
-        # Chạy initialization trong background thread
-        self.init_thread = threading.Thread(target=self._init_chatbot_thread, daemon=True)
-        self.init_thread.start()
-    
-    def _init_chatbot_thread(self):
-        """Khởi tạo chatbot trong thread riêng"""
-        try:
-            self.agent = build_chatbot(self.data_dir)
-            self.is_ready = True
-            self._append_message("Hệ thống", "✅ Chatbot sẵn sàng! Bạn có thể bắt đầu hỏi câu hỏi.", "system")
-            
-            # Enable input
-            if self.chat_input:
-                self.chat_input.setEnabled(True)
-            if self.btn_send:
-                self.btn_send.setEnabled(True)
-            if self.chat_input:
-                self.chat_input.setFocus()
-        except Exception as e:
-            self.is_ready = False
-            self._append_message("Lỗi", f"Không thể khởi tạo chatbot: {str(e)}", "error")
+
+        # Khởi tạo chatbot trong background thread
+        self._start_init_worker()
+
+    def _start_init_worker(self):
+        """Khởi tạo worker thread cho chatbot"""
+        self.init_worker = ChatbotWorker(self.data_dir)
+        self.init_worker.finished.connect(self._on_init_finished)
+        self.init_worker.error.connect(self._on_init_error)
+        self.init_worker.start()
+
+    def _on_init_finished(self, agent):
+        """Xử lý khi khởi tạo chatbot thành công"""
+        self.agent = agent
+        self.is_ready = True
+        self._append_message("Hệ thống", "✅ Chatbot sẵn sàng! Bạn có thể bắt đầu hỏi câu hỏi.", "system")
+
+        # Enable input
+        if self.chat_input:
+            self.chat_input.setEnabled(True)
+        if self.btn_send:
+            self.btn_send.setEnabled(True)
+        if self.chat_input:
+            self.chat_input.setFocus()
+
+    def _on_init_error(self, error_msg):
+        """Xử lý khi khởi tạo chatbot thất bại"""
+        self.is_ready = False
+        self._append_message("Lỗi", f"Không thể khởi tạo chatbot: {error_msg}", "error")
     
     def _chat_input_key_press(self, event):
         """Cho phép Ctrl+Enter để gửi tin nhắn"""

@@ -3,4 +3,7 @@ __pycache__/
 .DS_Store
 .env
 .vscode/
-video/
+backend/uploads/
+backend/backend/uploads/
+guild/
+test/
