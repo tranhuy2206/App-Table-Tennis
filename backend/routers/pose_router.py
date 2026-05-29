@@ -20,6 +20,7 @@ class PoseLandmark(BaseModel):
     x: float
     y: float
     z: Optional[float] = None
+    visibility: Optional[float] = None
     world_x: Optional[float] = None
     world_y: Optional[float] = None
     world_z: Optional[float] = None
@@ -29,6 +30,16 @@ class PoseDetectionResponse(BaseModel):
     success: bool
     message: str
     frame_count: int
+    total_frame_count: Optional[int] = None
+    processed_frame_count: Optional[int] = None
+    video_width: Optional[int] = None
+    video_height: Optional[int] = None
+    fps: Optional[float] = None
+    duration_seconds: Optional[float] = None
+    sample_rate: Optional[int] = None
+    processed_frame_indices: Optional[List[int]] = None
+    processed_timestamps_ms: Optional[List[float]] = None
+    pose_connections: Optional[List[List[int]]] = None
     landmarks_per_frame: Optional[List[List[PoseLandmark]]] = None
     first_frame_landmarks: Optional[List[PoseLandmark]] = None
 
@@ -52,6 +63,8 @@ async def detect_pose(
     """
     
     try:
+        sample_rate = max(1, sample_rate)
+
         # Lưu file tạm thời
         upload_dir = "backend/uploads"
         os.makedirs(upload_dir, exist_ok=True)
@@ -69,6 +82,16 @@ async def detect_pose(
         if not cap.isOpened():
             os.remove(temp_filename)
             raise HTTPException(status_code=400, detail="Không thể mở video")
+
+        fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+        video_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+        video_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+        total_frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        duration_seconds = (
+            float(total_frame_count / fps)
+            if fps > 0 and total_frame_count > 0
+            else None
+        )
         
         # Import PoseModule từ code folder
         CODE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "code"))
@@ -77,9 +100,18 @@ async def detect_pose(
         import PoseModule as pm
         
         detector = pm.poseDetector()
+        pose_connections = [
+            [int(start), int(end)]
+            for start, end in sorted(
+                detector.mpPose.POSE_CONNECTIONS,
+                key=lambda conn: (int(conn[0]), int(conn[1]))
+            )
+        ]
         frame_count = 0
         first_frame_landmarks = None
         all_landmarks = []
+        processed_frame_indices = []
+        processed_timestamps_ms = []
         
         while True:
             ret, frame = cap.read()
@@ -94,27 +126,46 @@ async def detect_pose(
             # Nhận diện pose
             detector.findPose(frame, draw=False)
             lm_list = detector.findPosition(frame, draw=False, use_3d=use_3d)
+
+            image_landmarks = (
+                detector.results.pose_landmarks.landmark
+                if getattr(detector, "results", None) and detector.results.pose_landmarks
+                else []
+            )
             
             # Chuyển đổi sang model
             landmarks = []
             for lm in lm_list:
+                lm_id = int(lm[0])
+                image_lm = image_landmarks[lm_id] if lm_id < len(image_landmarks) else None
+                z = float(image_lm.z) if image_lm is not None else None
+                visibility = float(image_lm.visibility) if image_lm is not None else None
+
                 if use_3d and len(lm) >= 6:  # [id, x, y, wx, wy, wz]
                     landmarks.append(PoseLandmark(
-                        id=int(lm[0]),
+                        id=lm_id,
                         x=float(lm[1]),
                         y=float(lm[2]),
+                        z=z,
+                        visibility=visibility,
                         world_x=float(lm[3]),
                         world_y=float(lm[4]),
                         world_z=float(lm[5])
                     ))
                 else:  # 2D [id, x, y]
                     landmarks.append(PoseLandmark(
-                        id=int(lm[0]),
+                        id=lm_id,
                         x=float(lm[1]),
-                        y=float(lm[2])
+                        y=float(lm[2]),
+                        z=z,
+                        visibility=visibility
                     ))
             
             all_landmarks.append(landmarks)
+            processed_frame_indices.append(frame_count)
+            processed_timestamps_ms.append(
+                float((frame_count / fps) * 1000.0) if fps > 0 else 0.0
+            )
             
             if first_frame_landmarks is None:
                 first_frame_landmarks = landmarks
@@ -128,6 +179,16 @@ async def detect_pose(
             success=True,
             message=f"Nhận diện thành công {frame_count} frame",
             frame_count=frame_count,
+            total_frame_count=total_frame_count or frame_count,
+            processed_frame_count=len(all_landmarks),
+            video_width=video_width,
+            video_height=video_height,
+            fps=fps,
+            duration_seconds=duration_seconds,
+            sample_rate=sample_rate,
+            processed_frame_indices=processed_frame_indices,
+            processed_timestamps_ms=processed_timestamps_ms,
+            pose_connections=pose_connections,
             landmarks_per_frame=all_landmarks,
             first_frame_landmarks=first_frame_landmarks
         )
