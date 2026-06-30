@@ -2,6 +2,8 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+ENV PYTHONUNBUFFERED=1
+
 # Install system dependencies for OpenCV & MediaPipe
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
@@ -26,8 +28,8 @@ COPY data ./data
 COPY chroma_db_official ./chroma_db_official
 COPY video ./video
 
-# Expose port
-EXPOSE 8000
+# Expose Hugging Face Spaces port
+EXPOSE 7860
 
 # Run FastAPI
-CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-7860}"]

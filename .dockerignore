@@ -1,0 +1,17 @@
+.git
+.venv
+.vscode
+.env
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+guild
+test
+backend/uploads
+backend/backend/uploads
+backend/video
