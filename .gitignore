@@ -7,3 +7,7 @@ backend/uploads/
 backend/backend/uploads/
 guild/
 test/
+tests/
+rag_eval/
+tools/
+backend/models

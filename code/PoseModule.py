@@ -50,22 +50,46 @@ class poseDetector:
                     cx, cy = int(lm.x * w), int(lm.y * h)
                     # Lấy x, y, z từ pose_world_landmarks (metric coordinates, chính xác hơn)
                     wx, wy, wz = float(wlm.x), float(wlm.y), float(wlm.z)
-                    self.lmList.append([id, cx, cy, wx, wy, wz])
+                    visibility = float(getattr(lm, "visibility", 1.0))
+                    presence = float(getattr(lm, "presence", 1.0))
+                    # Keep the historical coordinate positions intact and append
+                    # confidence metadata for consumers that can use it.
+                    self.lmList.append([id, cx, cy, wx, wy, wz, visibility, presence])
+                    if draw:
+                        cv2.circle(img, (cx, cy), 5, (255, 0, 0), cv2.FILLED)
+            elif use_3d:
+                # Rare fallback when world landmarks are unavailable. Preserve
+                # the 3D-compatible layout using normalized image coordinates.
+                for id, lm in enumerate(self.results.pose_landmarks.landmark):
+                    cx, cy = int(lm.x * w), int(lm.y * h)
+                    visibility = float(getattr(lm, "visibility", 1.0))
+                    presence = float(getattr(lm, "presence", 1.0))
+                    self.lmList.append([
+                        id, cx, cy, float(lm.x), float(lm.y), float(lm.z),
+                        visibility, presence,
+                    ])
                     if draw:
                         cv2.circle(img, (cx, cy), 5, (255, 0, 0), cv2.FILLED)
             else:
                 # Mode 2D: chỉ dùng pose_landmarks
                 for id, lm in enumerate(self.results.pose_landmarks.landmark):
                     cx, cy = int(lm.x * w), int(lm.y * h)
-                    self.lmList.append([id, cx, cy])
+                    visibility = float(getattr(lm, "visibility", 1.0))
+                    presence = float(getattr(lm, "presence", 1.0))
+                    self.lmList.append([id, cx, cy, visibility, presence])
                     if draw:
                         cv2.circle(img, (cx, cy), 5, (255, 0, 0), cv2.FILLED)
         return self.lmList
 
+    def close(self):
+        """Release MediaPipe native resources explicitly."""
+        if getattr(self, "pose", None) is not None:
+            self.pose.close()
+
     def findAngle(self, img, p1, p2, p3, draw=True):
-        x1, y1 = self.lmList[p1][1:]
-        x2, y2 = self.lmList[p2][1:]
-        x3, y3 = self.lmList[p3][1:]
+        x1, y1 = self.lmList[p1][1:3]
+        x2, y2 = self.lmList[p2][1:3]
+        x3, y3 = self.lmList[p3][1:3]
 
         angle = math.degrees(math.atan2(y3 - y2, x3 - x2) -
                              math.atan2(y1 - y2, x1 - x2))

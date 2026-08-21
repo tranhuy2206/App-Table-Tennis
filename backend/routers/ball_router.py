@@ -107,7 +107,7 @@ async def count_balls(
 async def get_ball_tracking_info():
     """Thông tin về ball tracking"""
     return {
-        "algorithm": "Background Subtraction (MOG2) + Contour Detection",
+        "algorithm": "Automatic table ROI + MOG2/color filtering + Kalman tracking",
         "features": [
             "Đếm quả bóng qua lưới",
             "Hỗ trợ nhiều loại video"

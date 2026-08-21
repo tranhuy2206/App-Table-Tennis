@@ -1,9 +1,8 @@
-import os, cv2
+import os
 from PySide6.QtWidgets import QFileDialog, QMessageBox, QLabel, QPushButton, QTextEdit, QListWidget, QLCDNumber, QListWidgetItem, QAbstractItemView, QComboBox
-from PySide6.QtGui import QTextCursor, QImage, QPixmap
-from PySide6.QtCore import QThread, QTimer, Qt
+from PySide6.QtGui import QTextCursor
+from PySide6.QtCore import QThread, Qt
 from compare_worker import CompareWorker
-from video_tabs_controller import VideoTabController
 from processor_pose import PoseProcessor
 from autoplay_preview import AutoplayPreview
 import Compare_Pose as CP
@@ -25,6 +24,7 @@ class CompareTabController:
         self.videoTeacher = mw.findChild(QLabel, "videoTeacher")
         self.videoStudent = mw.findChild(QLabel, "videoStudent")
         self.comboAction = mw.findChild(QComboBox, "comboAction")
+        self.console = mw.findChild(QTextEdit, "outputConsole")
         
         # Setup action combo box
         self._setup_action_combo()
@@ -102,9 +102,7 @@ class CompareTabController:
 
         def on_done(result: dict):
             # 1) Log summary
-            score   = result.get("weighted_score")
-            perfeat = result.get("per_feature_rms", {}) or {}
-            missing = result.get("missing_features", []) or []
+            score = result.get("overall_score", result.get("weighted_score"))
 
             if self.lcdScore is not None and score is not None:
                 try:
@@ -119,6 +117,8 @@ class CompareTabController:
                     self._errors_add(m)
             else:
                 self._errors_add("Great alignment overall. Keep it up!")
+            for warning in result.get("quality", {}).get("warnings", []):
+                self._errors_add(f"Data quality: {warning}")
 
             # Re-enable buttons & cleanup thread
             for btn in (self.btnPickRef, self.btnPickStu, self.btnRunCompare):
@@ -201,67 +201,11 @@ class CompareTabController:
 
     # ---------------- Helpers ----------------
     def _log(self, s: str):
-        if not self.console:
+        if not getattr(self, "console", None):
             return
         self.console.append(s)
         self.console.moveCursor(QTextCursor.End)
 
     def clear_log(self):
-        if self.console:
+        if getattr(self, "console", None):
             self.console.clear()
-
-    def _make_error_hints(self, per_feature_rms: dict):
-        """
-        Convert per-feature RMS errors to friendly English hints.
-        You can tune thresholds per joint/feature.
-        """
-        if not per_feature_rms:
-            return []
-
-        # Example thresholds (you should calibrate with your data)
-        base_thr = 0.15  # generic threshold
-        key_thr  = {
-            "wrist": 0.12, "elbow": 0.14, "shoulder": 0.16,
-            "hip": 0.16, "knee": 0.14, "ankle": 0.14,
-            "neck": 0.12, "back": 0.16
-        }
-
-        messages = []
-        for k, v in per_feature_rms.items():
-            try:
-                val = float(v)
-            except Exception:
-                continue
-
-            name = k.lower()
-            thr = key_thr.get(name, base_thr)
-            if val <= thr:
-                continue
-
-            # Map feature -> message
-            if "wrist" in name:
-                messages.append("Your wrist alignment is off. Keep your wrist straight and aligned with the forearm.")
-            elif "elbow" in name:
-                messages.append("Excessive elbow flexion detected. Relax your elbow and avoid overbending.")
-            elif "shoulder" in name:
-                messages.append("Limited shoulder rotation. Rotate your shoulder more through impact.")
-            elif "neck" in name:
-                messages.append("Neck tilt is inconsistent. Keep your head steady and aligned.")
-            elif "back" in name or "spine" in name:
-                messages.append("Back posture is unstable. Engage your core and maintain a neutral spine.")
-            elif "hip" in name:
-                messages.append("Hip rotation/balance needs work. Stabilize hips and rotate smoothly.")
-            elif "knee" in name:
-                messages.append("Insufficient knee bend. Lower your stance for better stability.")
-            elif "ankle" in name or "foot" in name:
-                messages.append("Ankle/foot placement is off. Keep feet grounded and aligned with movement.")
-            else:
-                messages.append(f"Form deviation at {k}. Re-check alignment and timing.")
-
-        # Deduplicate while preserving order
-        seen = set()
-        uniq = []
-        for m in messages:
-            if m not in seen:
-                uniq.append(m); seen.add(m)
-        return uniq
