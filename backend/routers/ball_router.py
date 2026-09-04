@@ -4,7 +4,7 @@ Ball Tracking Router - Đếm quả bóng bàn
 
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Any, Dict, Optional
 import os
 import cv2
 import sys
@@ -19,13 +19,15 @@ class BallTrackingResponse(BaseModel):
     ball_count: int
     frame_count: int
     video_duration_seconds: Optional[float] = None
+    diagnostics: Optional[Dict[str, Any]] = None
 
 
 @router.post("/count", response_model=BallTrackingResponse)
 async def count_balls(
     file: UploadFile = File(...),
     frame_w: int = 640,
-    frame_h: int = 480
+    frame_h: int = 480,
+    debug: bool = False,
 ):
     """
     Đếm quả bóng bàn qua lưới trong video
@@ -62,7 +64,11 @@ async def count_balls(
             sys.path.insert(0, CODE_DIR)
         from processor_ball import BallProcessor
         
-        processor = BallProcessor(frame_w=frame_w, frame_h=frame_h)
+        processor = BallProcessor(
+            frame_w=frame_w,
+            frame_h=frame_h,
+            debug_diagnostics=debug,
+        )
         frame_count = 0
         
         while True:
@@ -76,6 +82,9 @@ async def count_balls(
         
         # Lấy số đếm cuối cùng
         ball_count = processor.ball_count
+        diagnostics = processor.get_diagnostics() if debug else None
+        if debug:
+            print(processor._format_diagnostics_summary())
         
         # Lấy FPS để tính duration
         fps = cap.get(cv2.CAP_PROP_FPS)
@@ -89,7 +98,8 @@ async def count_balls(
             message=f"Đếm thành công bóng qua lưới",
             ball_count=ball_count,
             frame_count=frame_count,
-            video_duration_seconds=duration
+            video_duration_seconds=duration,
+            diagnostics=diagnostics,
         )
         
     except Exception as e:
@@ -99,7 +109,8 @@ async def count_balls(
             success=False,
             message=f"Lỗi: {str(e)}",
             ball_count=0,
-            frame_count=0
+            frame_count=0,
+            diagnostics=None,
         )
 
 

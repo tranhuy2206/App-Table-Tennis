@@ -76,6 +76,10 @@ class VideoTabController:
             self.current_source = None
             return
 
+        reset_processor = getattr(self.processor, "reset", None)
+        if callable(reset_processor):
+            reset_processor()
+
         fps = self.cap.get(cv2.CAP_PROP_FPS)
         if not fps or fps != fps or fps <= 1:
             fps = 30
@@ -97,7 +101,7 @@ class VideoTabController:
         self.last_tick_time = None
 
     def _skip_stale_frames(self):
-        if self.last_tick_time is None:
+        if self.last_tick_time is None or getattr(self.processor, "preserve_all_frames", False):
             return
 
         now = time.perf_counter()
